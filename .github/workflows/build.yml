@@ -1,13 +1,16 @@
-name: Build EXE
+name: Build and Release
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
     tags:
       - 'v*'
   pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:  # 允許手動觸發
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -30,32 +33,31 @@ jobs:
     
     - name: Download WinDivert
       run: |
-        # 下載 WinDivert 2.2.2
         Invoke-WebRequest -Uri "https://github.com/basil00/WinDivert/releases/download/v2.2.2/WinDivert-2.2.2-A.zip" -OutFile "WinDivert.zip"
         Expand-Archive -Path "WinDivert.zip" -DestinationPath "WinDivert"
-        # 顯示目錄結構以便除錯
-        Get-ChildItem -Recurse WinDivert
     
     - name: Build EXE
       run: |
-        # 打包 WinDivert DLL 和 sys 驅動程式
-        pyinstaller --onefile --windowed --name "SpeedLimit" `
+        pyinstaller --noconfirm --onefile --windowed --name "SpeedLimit" `
           --add-binary "WinDivert/WinDivert-2.2.2-A/x64/WinDivert.dll;." `
           --add-binary "WinDivert/WinDivert-2.2.2-A/x64/WinDivert64.sys;." `
           --uac-admin `
           main.py
 
-    - name: Upload artifact
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: SpeedLimit-Windows
         path: dist/SpeedLimit.exe
-        retention-days: 30
+        retention-days: 5
 
     - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
         files: dist/SpeedLimit.exe
         generate_release_notes: true
-        token: ${{ secrets.GITHUB_TOKEN }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
