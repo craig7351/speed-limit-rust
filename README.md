@@ -1,65 +1,56 @@
-# Windows Speed Limit (Windows 11 全域頻寬限制器)
+# Windows Speed Limit (Rust 版)
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows%2011-orange)
+![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-這是一個基於 Python 與 `pydivert` (WinDivert) 的 Windows 原生網路頻寬限制工具。
-不同於 Windows 內建的 QoS 原則（通常僅支援上傳限制），本工具能夠達到**全域下載 (Inbound)** 與 **全域上傳 (Outbound)** 的雙向流量控制。
+這是一個將原 Python 版重新以 **Rust** 實作的全域頻寬限制器。透過 `windivert` (WinDivert 驅動) 攔截網路封包，並使用 **Token Bucket** 演算法實作精確的流量整形。
 
-## ✨ 功能特色
+## ✨ Rust 版核心改進
 
-*   **全域頻寬限制**: 針對整台電腦的網路流量進行整形 (Traffic Shaping)。
-*   **雙向控制**: 支援獨立設定 **下載** 與 **上傳** 的 Mbps 速限。
-*   **不需重啟**: 即時生效，隨開隨用。
-*   **圖形化介面**: 提供簡單易用的 GUI 操作。
+*   **高效能與低延遲**: 採用 Rust 原生實作，上傳與下載流量在**獨立執行緒**處理，解決了 Python 版單一執行緒互相干擾的瓶頸。
+*   **執行緒安全**: 嚴謹的記憶體管理與 Mutex 通訊，確保在高流量下穩定運作。
+*   **即時速度監控**: 新增 GUI 顯示，可即時查看目前的下行與上行速度（Mbps/Kbps）。
+*   **更好的停止機制**: 優化了封包攔截迴圈，點擊停止後能更迅速地釋放資源並恢復網路。
+*   **單一執行檔**: (開發中) 未來將支援打包成單一 `.exe` 分發，無需安裝 Python 環境。
 
-## 🛠️ 技術原理
+## 🛠️ 技術架構
 
-本專案使用 **Token Bucket (權杖桶)** 演算法來進行流量整形。
-*   **核心驅動**: 使用 `pydivert` 攔截 Windows 網路堆疊 (Network Stack) 中的封包。
-*   **運作機制**: 程式會攔截所有 IP 封包，計算當前流量消耗。如果超過設定的頻寬限制，程式會計算即時延遲 (Latency) 並暫停封包的發送，從而達到限制網速的效果。
+*   **GUI 框架**: 使用 [egui/eframe](https://github.com/emilk/egui) (核心 Rust 實作，極速、輕量)。
+*   **驅動介面**: 使用 `pydivert` 的 Rust 綁定 [`windivert`](https://crates.io/crates/windivert)。
+*   **權限管理**: 自動檢查並請求管理員 (UAC) 提權。
 
-## 📦 安裝與使用
+## 🚀 快速開始
 
 ### 前置需求
-*   Windows 10 / 11 (需管理員權限)
-*   Python 3.8 或以上版本
+*   Windows 10 / 11 (需管理員權限)。
+*   [Rust 工具鏈](https://rustup.rs/) (建議 1.75 以上)。
 
-### 安裝步驟
+### 編譯與執行
 
-1.  複製專案到本地：
+1.  複製專案：
     ```bash
     git clone https://github.com/yourusername/speed-limit.git
     cd speed-limit
     ```
 
-2.  安裝依賴：
+2.  直接編譯並執行：
     ```bash
-    pip install -r requirements.txt
+    cargo run --release
     ```
-    *(主要依賴 `pydivert`，程式啟動時會嘗試自動安裝)*
+    *(註：首次啟動會自動請求管理員權限)*
 
-### 🚀 如何執行
+## 📂 檔案結構 (Rust)
 
-請直接執行目錄下的批次檔：
-
-*   **啟動**: 雙擊 `start.bat`
-    *   會跳出使用者帳戶控制 (UAC) 請求權限，請點選「是」。
-    *   視窗開啟後，輸入欲限制的 Mbps 數值 (例如 `5` 代表 5 Mbps)，點擊 **START Limiting**。
-*   **停止**: 雙擊 `stop.bat` 或在程式介面點擊 **STOP** (或直接關閉視窗)。
+*   `src/main.rs`: 程式入口與 UAC 提權邏輯。
+*   `src/app.rs`: GUI 介面實作。
+*   `src/traffic_shaper.rs`: 核心流量整形邏輯與 WinDivert 整合。
+*   `src/admin.rs`: 管理員權限檢查工具。
 
 ## ⚠️ 注意事項
 
-*   **防毒軟體**: 由於本程式使用 `WinDivert` 驅動攔截封包，部分防毒軟體可能會將其誤判為風險程式。如遇此情況，請將程式加入白名單。
-*   **網路中斷**: 若程式在執行中意外崩潰 (Crash)，網路可能會暫時中斷。此時只需重新執行程式並正常關閉，或直接重啟電腦即可恢復。
-
-## 📂 檔案結構
-
-*   `main.py`: GUI 主程式與權限管理。
-*   `traffic_shaper.py`: 核心流量整形邏輯 (Token Bucket 演算法)。
-*   `start.bat`: 方便的一鍵啟動腳本。
-*   `stop.bat`: 緊急停止/清理腳本。
+*   **防毒軟體**: WinDivert 驅動可能會被部分防毒軟體誤判，如無法運行請加入排除名單。
+*   **網路恢復**: 若程式異常崩潰，通常只需重新啟動程式並點擊停止，或重啟電腦即可恢復網路正常。
 
 ## 📝 License
 
