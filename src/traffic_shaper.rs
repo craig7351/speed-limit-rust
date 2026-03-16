@@ -28,12 +28,6 @@ impl TokenBucket {
         }
     }
 
-    fn set_rate(&mut self, rate: f64) {
-        self.rate = rate;
-        self.tokens = if rate > 0.0 { rate } else { f64::INFINITY };
-        self.last_refill = Instant::now();
-    }
-
     /// 補充 token 並嘗試消耗 packet_size
     /// 回傳需要等待的秒數（0.0 = 不需等待）
     fn consume(&mut self, packet_size: usize) -> f64 {

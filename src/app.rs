@@ -30,7 +30,8 @@ impl Default for SpeedLimitApp {
 }
 
 impl SpeedLimitApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        setup_custom_fonts(&cc.egui_ctx);
         Self::default()
     }
 
@@ -99,6 +100,29 @@ impl SpeedLimitApp {
                 self.error_message = Some("限速器異常停止".to_string());
             }
         }
+    }
+}
+
+/// 設定中文字型以解決方塊亂碼問題
+fn setup_custom_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    // 嘗試在 Windows 系統路徑尋找「微軟正黑體」
+    let font_path = "C:\\Windows\\Fonts\\msjh.ttc";
+    
+    if let Ok(font_data) = std::fs::read(font_path) {
+        fonts.font_data.insert(
+            "msjh".to_owned(),
+            std::sync::Arc::new(egui::FontData::from_owned(font_data)),
+        );
+
+        // 將其加入到 Proportional 和 Monospace 的優先名單首位
+        fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap()
+            .insert(0, "msjh".to_owned());
+        fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap()
+            .insert(0, "msjh".to_owned());
+        
+        ctx.set_fonts(fonts);
     }
 }
 
