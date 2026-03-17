@@ -24,8 +24,8 @@ fn main() {
 
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([480.0, 520.0])
-            .with_min_inner_size([420.0, 480.0])
+            .with_inner_size([480.0, 720.0])
+            .with_min_inner_size([420.0, 580.0])
             .with_title("Speed Limit - Process & Global Throttling"),
         ..Default::default()
     };
