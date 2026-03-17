@@ -3,10 +3,16 @@
 //! 供 Network layer 封包攔截時查詢封包所屬 process。
 
 use std::collections::HashMap;
+use std::ffi::CString;
+use std::mem::MaybeUninit;
 use std::net::IpAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+use windivert_sys as sys;
+use windivert_sys::address::WINDIVERT_ADDRESS;
+use windivert_sys::{WinDivertFlags, WinDivertLayer, WinDivertShutdownMode};
 
 /// 網路流的 5-tuple 識別鍵
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -65,11 +71,19 @@ fn get_process_name(pid: u32) -> String {
     }
 }
 
+/// Thread-safe wrapper for raw WinDivert handle value.
+#[derive(Clone, Copy)]
+struct RawHandle(isize);
+unsafe impl Send for RawHandle {}
+unsafe impl Sync for RawHandle {}
+
 /// Process 連線監控器
 pub struct ProcessMonitor {
     running: Arc<AtomicBool>,
     flow_map: Arc<Mutex<HashMap<FlowKey, ProcessInfo>>>,
     thread_handle: Option<thread::JoinHandle<()>>,
+    /// Raw WinDivert handle for external shutdown
+    wdh_handle: Arc<Mutex<Option<RawHandle>>>,
 }
 
 impl ProcessMonitor {
@@ -78,6 +92,7 @@ impl ProcessMonitor {
             running: Arc::new(AtomicBool::new(false)),
             flow_map: Arc::new(Mutex::new(HashMap::new())),
             thread_handle: None,
+            wdh_handle: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -91,9 +106,10 @@ impl ProcessMonitor {
 
         let running = self.running.clone();
         let flow_map = self.flow_map.clone();
+        let wdh_handle = self.wdh_handle.clone();
 
         let handle = thread::spawn(move || {
-            if let Err(e) = Self::monitor_worker(running.clone(), flow_map) {
+            if let Err(e) = Self::monitor_worker(running.clone(), flow_map, wdh_handle) {
                 eprintln!("ProcessMonitor 錯誤: {}", e);
                 running.store(false, Ordering::SeqCst);
             }
@@ -106,6 +122,15 @@ impl ProcessMonitor {
     /// 停止監聽
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
+
+        // Shutdown WinDivert handle 以中斷阻塞的 recv()
+        if let Ok(mut h) = self.wdh_handle.lock() {
+            if let Some(raw) = h.take() {
+                unsafe {
+                    sys::WinDivertShutdown(std::mem::transmute(raw.0), WinDivertShutdownMode::Both);
+                }
+            }
+        }
 
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
@@ -147,48 +172,84 @@ impl ProcessMonitor {
         self.flow_map.clone()
     }
 
-    /// Flow layer 監聽執行緒
+    /// Flow layer 監聽執行緒（使用 raw windivert_sys API 確保 handle 正確關閉）
     fn monitor_worker(
         running: Arc<AtomicBool>,
         flow_map: Arc<Mutex<HashMap<FlowKey, ProcessInfo>>>,
+        wdh_handle: Arc<Mutex<Option<RawHandle>>>,
     ) -> Result<(), String> {
-        use windivert::prelude::*;
+        // 使用 raw API 開啟 Flow layer handle
+        let filter = CString::new("true").map_err(|e| format!("{}", e))?;
+        let flags = WinDivertFlags::new().set_recv_only().set_sniff();
+        let handle = unsafe {
+            sys::WinDivertOpen(
+                filter.as_ptr(),
+                WinDivertLayer::Flow,
+                -1,    // 較低優先權
+                flags,
+            )
+        };
+        if handle.is_invalid() {
+            return Err(format!("無法開啟 WinDivert Flow layer: {:?}", std::io::Error::last_os_error()));
+        }
 
-        // 使用 Flow layer，設定 sniff flag（不攔截，只觀察）
-        let flags = WinDivertFlags::new();
-        // 如果是較舊版本的 windivert crate，flags 可能沒有 set_sniff
-        // 但我們之前的代碼有用過，這裡假設支援。如果不支援會報編譯錯誤。
-
-        let wdh = WinDivert::flow(
-            "true",
-            -1,    // priority: 較低優先權，不影響其他 handle
-            flags,
-        )
-        .map_err(|e| format!("無法開啟 WinDivert Flow layer: {:?}", e))?;
+        // 存儲 handle 以供外部 shutdown
+        let handle_raw: isize = unsafe { std::mem::transmute(handle) };
+        if let Ok(mut h) = wdh_handle.lock() {
+            *h = Some(RawHandle(handle_raw));
+        }
 
         while running.load(Ordering::Relaxed) {
-            let packet = match wdh.recv(None) {
-                Ok(p) => p,
-                Err(e) => {
-                    if !running.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    let err_str = format!("{:?}", e);
-                    // 超時或緩衝區錯誤，繼續嘗試
-                    if err_str.contains("87") || err_str.contains("timeout") {
-                        continue;
-                    }
-                    return Err(format!("Flow recv 錯誤: {}", err_str));
-                }
+            let mut addr = MaybeUninit::<WINDIVERT_ADDRESS>::uninit();
+            let mut recv_len: u32 = 0;
+
+            let ok = unsafe {
+                sys::WinDivertRecv(
+                    handle,
+                    std::ptr::null_mut(),
+                    0,
+                    &mut recv_len,
+                    addr.as_mut_ptr(),
+                )
             };
 
-            let addr = &packet.address;
-            let pid = addr.process_id();
-            let protocol = addr.protocol();
-            let local_addr = addr.local_address();
-            let remote_addr = addr.remote_address();
-            let local_port = addr.local_port();
-            let remote_port = addr.remote_port();
+            if !ok.as_bool() {
+                if !running.load(Ordering::Relaxed) {
+                    break; // 正常關閉
+                }
+                let err = std::io::Error::last_os_error();
+                let err_code = err.raw_os_error().unwrap_or(0);
+                // 超時或緩衝區錯誤，繼續嘗試
+                if err_code == 87 {
+                    continue;
+                }
+                // 清理後返回
+                Self::close_handle(&wdh_handle, handle_raw);
+                return Err(format!("Flow recv 錯誤: {:?}", err));
+            }
+
+            let addr = unsafe { addr.assume_init() };
+            let flow = unsafe { addr.union_field.Flow };
+
+            let pid = flow.process_id;
+            let protocol = flow.protocol;
+            let local_port = flow.local_port;
+            let remote_port = flow.remote_port;
+
+            // 轉換 IP 地址
+            let (local_addr, remote_addr) = if addr.ipv6() {
+                let local = IpAddr::V6(std::net::Ipv6Addr::from(
+                    flow.local_addr.iter().rev().fold(0u128, |acc, &x| acc << 32 | (x as u128)),
+                ));
+                let remote = IpAddr::V6(std::net::Ipv6Addr::from(
+                    flow.remote_addr.iter().rev().fold(0u128, |acc, &x| acc << 32 | (x as u128)),
+                ));
+                (local, remote)
+            } else {
+                let local = IpAddr::V4(std::net::Ipv4Addr::from(flow.local_addr[0]));
+                let remote = IpAddr::V4(std::net::Ipv4Addr::from(flow.remote_addr[0]));
+                (local, remote)
+            };
 
             let key = FlowKey {
                 protocol,
@@ -199,7 +260,6 @@ impl ProcessMonitor {
             };
 
             if let Ok(mut map) = flow_map.lock() {
-                // 基於 PID 判斷：PID > 0 代表連線建立與存續，PID = 0 代表連線結束
                 if pid > 0 {
                     let name = get_process_name(pid);
                     map.insert(key, ProcessInfo { pid, name });
@@ -209,7 +269,20 @@ impl ProcessMonitor {
             }
         }
 
+        // 正確關閉 WinDivert handle
+        Self::close_handle(&wdh_handle, handle_raw);
         Ok(())
+    }
+
+    /// 安全關閉 WinDivert handle
+    fn close_handle(wdh_handle: &Arc<Mutex<Option<RawHandle>>>, handle_raw: isize) {
+        if let Ok(mut h) = wdh_handle.lock() {
+            *h = None;
+        }
+        unsafe {
+            sys::WinDivertShutdown(std::mem::transmute(handle_raw), WinDivertShutdownMode::Both);
+            sys::WinDivertClose(std::mem::transmute(handle_raw));
+        }
     }
 }
 

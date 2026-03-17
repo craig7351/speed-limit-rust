@@ -2,10 +2,16 @@
 //! 支援全域限速和 per-process 限速
 
 use std::collections::HashMap;
+use std::ffi::{c_void, CString};
+use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
+
+use windivert_sys as sys;
+use windivert_sys::address::WINDIVERT_ADDRESS;
+use windivert_sys::{WinDivertFlags, WinDivertLayer, WinDivertShutdownMode};
 
 use crate::process_monitor::{parse_flow_key_from_packet, ProcessMonitor};
 
@@ -88,6 +94,14 @@ struct ProcessCounter {
     ul_bytes: u64,
 }
 
+/// Thread-safe wrapper for raw WinDivert handle value.
+/// We store as isize to avoid windows crate version conflicts
+/// (windivert-sys uses windows 0.48 HANDLE(isize), our code uses windows 0.61).
+#[derive(Clone, Copy)]
+struct RawHandle(isize);
+unsafe impl Send for RawHandle {}
+unsafe impl Sync for RawHandle {}
+
 /// 頻寬限制器
 pub struct BandwidthLimiter {
     running: Arc<AtomicBool>,
@@ -97,6 +111,8 @@ pub struct BandwidthLimiter {
     upload_limit_mbps: f64,
     process_rules: Arc<Mutex<Vec<ProcessRule>>>,
     process_monitor: ProcessMonitor,
+    /// Raw WinDivert handle for external shutdown (interrupt blocking recv)
+    wdh_handle: Arc<Mutex<Option<RawHandle>>>,
 }
 
 impl BandwidthLimiter {
@@ -115,6 +131,7 @@ impl BandwidthLimiter {
             upload_limit_mbps: 0.0,
             process_rules: Arc::new(Mutex::new(Vec::new())),
             process_monitor,
+            wdh_handle: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -169,9 +186,10 @@ impl BandwidthLimiter {
 
         // 複製 process_monitor 的 flow_map 引用
         let monitor_flow_map = self.process_monitor.get_flow_map();
+        let wdh_handle = self.wdh_handle.clone();
 
         let handle = thread::spawn(move || {
-            if let Err(e) = Self::worker(running.clone(), stats, dl_rate, ul_rate, process_rules, monitor_flow_map) {
+            if let Err(e) = Self::worker(running.clone(), stats, dl_rate, ul_rate, process_rules, monitor_flow_map, wdh_handle) {
                 eprintln!("流量整形器錯誤: {}", e);
                 running.store(false, Ordering::SeqCst);
             }
@@ -184,6 +202,15 @@ impl BandwidthLimiter {
     /// 停止限速
     pub fn stop(&mut self) {
         self.running.store(false, Ordering::SeqCst);
+
+        // 先 shutdown WinDivert handle 以中斷阻塞的 recv()
+        if let Ok(mut h) = self.wdh_handle.lock() {
+            if let Some(raw) = h.take() {
+                unsafe {
+                    sys::WinDivertShutdown(std::mem::transmute(raw.0), WinDivertShutdownMode::Both);
+                }
+            }
+        }
 
         if let Some(handle) = self.thread_handle.take() {
             // 等待工作執行緒結束 (最多 2 秒)
@@ -199,7 +226,7 @@ impl BandwidthLimiter {
         }
     }
 
-    /// 工作執行緒 - 攔截並整形封包
+    /// 工作執行緒 - 攔截並整形封包（使用 raw windivert_sys API 確保 handle 正確關閉）
     fn worker(
         running: Arc<AtomicBool>,
         stats: Arc<Mutex<TrafficStats>>,
@@ -207,16 +234,27 @@ impl BandwidthLimiter {
         ul_rate: f64,
         process_rules: Arc<Mutex<Vec<ProcessRule>>>,
         flow_map: Arc<Mutex<HashMap<crate::process_monitor::FlowKey, crate::process_monitor::ProcessInfo>>>,
+        wdh_handle: Arc<Mutex<Option<RawHandle>>>,
     ) -> Result<(), String> {
-        use windivert::prelude::*;
+        // 使用 raw API 開啟 WinDivert handle，確保可以從外部 shutdown + 正確 close
+        let filter = CString::new("true").map_err(|e| format!("{}", e))?;
+        let handle = unsafe {
+            sys::WinDivertOpen(
+                filter.as_ptr(),
+                WinDivertLayer::Network,
+                0,
+                WinDivertFlags::new(),
+            )
+        };
+        if handle.is_invalid() {
+            return Err(format!("無法開啟 WinDivert: {:?}", std::io::Error::last_os_error()));
+        }
 
-        // 開啟 WinDivert handle，攔截所有 IP 流量
-        let wdh = WinDivert::network(
-            "true",
-            0,    // priority
-            WinDivertFlags::new(),
-        )
-        .map_err(|e| format!("無法開啟 WinDivert: {:?}", e))?;
+        // 存儲 handle 以供外部 shutdown (轉為 isize 以避免 windows crate 版本衝突)
+        let handle_raw: isize = unsafe { std::mem::transmute(handle) };
+        if let Ok(mut h) = wdh_handle.lock() {
+            *h = Some(RawHandle(handle_raw));
+        }
 
         let mut dl_bucket = TokenBucket::new(dl_rate);
         let mut ul_bucket = TokenBucket::new(ul_rate);
@@ -234,32 +272,54 @@ impl BandwidthLimiter {
 
         while running.load(Ordering::Relaxed) {
             // 接收封包
-            let packet = match wdh.recv(Some(&mut buffer)) {
-                Ok(p) => p,
-                Err(e) => {
-                    let err_str = format!("{:?}", e);
-                    if err_str.contains("87") {
-                        // 封包太大，跳過
-                        continue;
-                    }
-                    if !running.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    return Err(format!("recv 錯誤: {}", err_str));
-                }
+            let mut recv_len: u32 = 0;
+            let mut addr = MaybeUninit::<WINDIVERT_ADDRESS>::uninit();
+
+            let ok = unsafe {
+                sys::WinDivertRecv(
+                    handle,
+                    buffer.as_mut_ptr() as *mut c_void,
+                    buffer.len() as u32,
+                    &mut recv_len,
+                    addr.as_mut_ptr(),
+                )
             };
 
+            if !ok.as_bool() {
+                let err = std::io::Error::last_os_error();
+                if err.raw_os_error() == Some(87) {
+                    continue; // 封包太大，跳過
+                }
+                if !running.load(Ordering::Relaxed) {
+                    break; // 正常關閉 (WinDivertShutdown 導致 recv 失敗)
+                }
+                // 異常錯誤，清理後返回
+                Self::close_handle(&wdh_handle, handle_raw);
+                return Err(format!("recv 錯誤: {:?}", err));
+            }
+
+            let addr = unsafe { addr.assume_init() };
+
             if !running.load(Ordering::Relaxed) {
-                // 停止信號已設定，直接轉發剩餘封包
-                let _ = wdh.send(&packet);
+                // 停止信號已設定，直接轉發剩餘封包後退出
+                unsafe {
+                    sys::WinDivertSend(
+                        handle,
+                        buffer.as_ptr() as *const c_void,
+                        recv_len,
+                        std::ptr::null_mut(),
+                        &addr,
+                    );
+                }
                 break;
             }
 
-            let packet_len = packet.data.len();
-            let is_outbound = packet.address.outbound();
+            let packet_len = recv_len as usize;
+            let packet_data = &buffer[..packet_len];
+            let is_outbound = addr.outbound();
 
             // 嘗試解析 5-tuple 並查找 process
-            let process_name = parse_flow_key_from_packet(&packet.data, is_outbound)
+            let process_name = parse_flow_key_from_packet(packet_data, is_outbound)
                 .and_then(|flow_key| {
                     if let Ok(map) = flow_map.lock() {
                         map.get(&flow_key).map(|info| info.name.clone())
@@ -343,7 +403,15 @@ impl BandwidthLimiter {
             }
 
             // 轉發封包
-            let _ = wdh.send(&packet);
+            unsafe {
+                sys::WinDivertSend(
+                    handle,
+                    buffer.as_ptr() as *const c_void,
+                    recv_len,
+                    std::ptr::null_mut(),
+                    &addr,
+                );
+            }
 
             // 更新統計 (每秒更新一次)
             let elapsed = window_start.elapsed().as_secs_f64();
@@ -362,7 +430,7 @@ impl BandwidthLimiter {
                                 counter.ul_bytes as f64 / elapsed,
                             )
                         })
-                        .filter(|(_, dl, ul)| *dl > 0.0 || *ul > 0.0) // 過濾不活躍的
+                        .filter(|(_, dl, ul)| *dl > 0.0 || *ul > 0.0)
                         .collect();
 
                     // 按下載量排序
@@ -377,7 +445,20 @@ impl BandwidthLimiter {
             }
         }
 
+        // 正確關閉 WinDivert handle，移除 kernel filter
+        Self::close_handle(&wdh_handle, handle_raw);
         Ok(())
+    }
+
+    /// 安全關閉 WinDivert handle
+    fn close_handle(wdh_handle: &Arc<Mutex<Option<RawHandle>>>, handle_raw: isize) {
+        if let Ok(mut h) = wdh_handle.lock() {
+            *h = None;
+        }
+        unsafe {
+            sys::WinDivertShutdown(std::mem::transmute(handle_raw), WinDivertShutdownMode::Both);
+            sys::WinDivertClose(std::mem::transmute(handle_raw));
+        }
     }
 }
 
