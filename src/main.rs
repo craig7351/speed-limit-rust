@@ -6,6 +6,7 @@
 mod admin;
 mod app;
 mod traffic_shaper;
+mod process_monitor;
 
 fn main() {
     // 檢查管理員權限
@@ -22,9 +23,9 @@ fn main() {
 
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([420.0, 380.0])
-            .with_min_inner_size([380.0, 340.0])
-            .with_title("Speed Limit - 全域頻寬限制器"),
+            .with_inner_size([480.0, 520.0])
+            .with_min_inner_size([420.0, 480.0])
+            .with_title("Speed Limit - Process & Global Throttling"),
         ..Default::default()
     };
 
