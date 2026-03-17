@@ -5,6 +5,19 @@ use eframe::egui;
 use crate::config;
 use crate::traffic_shaper::{BandwidthLimiter, ProcessRule};
 
+// ── macOS 風格色彩 ──
+const BG_LIGHT: egui::Color32 = egui::Color32::from_rgb(236, 236, 236);
+const CARD_BG: egui::Color32 = egui::Color32::from_rgb(255, 255, 255);
+const CARD_BORDER: egui::Color32 = egui::Color32::from_rgb(210, 210, 210);
+const ACCENT_BLUE: egui::Color32 = egui::Color32::from_rgb(0, 122, 255);
+const ACCENT_GREEN: egui::Color32 = egui::Color32::from_rgb(52, 199, 89);
+const ACCENT_RED: egui::Color32 = egui::Color32::from_rgb(255, 59, 48);
+const ACCENT_ORANGE: egui::Color32 = egui::Color32::from_rgb(255, 149, 0);
+const TEXT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(28, 28, 30);
+const TEXT_SECONDARY: egui::Color32 = egui::Color32::from_rgb(99, 99, 102);
+const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(142, 142, 147);
+const INPUT_BG: egui::Color32 = egui::Color32::from_rgb(242, 242, 247);
+
 /// 主應用程式狀態
 pub struct SpeedLimitApp {
     limiter: BandwidthLimiter,
@@ -223,7 +236,6 @@ impl SpeedLimitApp {
 fn setup_custom_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
 
-    // 嘗試在 Windows 系統路徑尋找「微軟正黑體」
     let font_path = "C:\\Windows\\Fonts\\msjh.ttc";
     
     if let Ok(font_data) = std::fs::read(font_path) {
@@ -231,178 +243,280 @@ fn setup_custom_fonts(ctx: &egui::Context) {
             "msjh".to_owned(),
             std::sync::Arc::new(egui::FontData::from_owned(font_data)),
         );
-
-        // 將其加入到 Proportional 和 Monospace 的優先名單首位
         fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap()
             .insert(0, "msjh".to_owned());
         fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap()
             .insert(0, "msjh".to_owned());
-        
         ctx.set_fonts(fonts);
     }
 }
 
+/// 套用 macOS 風格淺色主題
+fn apply_theme(ctx: &egui::Context) {
+    let mut style = (*ctx.style()).clone();
+
+    style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+    style.spacing.window_margin = egui::Margin::same(16);
+    style.spacing.button_padding = egui::vec2(14.0, 6.0);
+
+    // 關閉深色模式
+    style.visuals.dark_mode = false;
+
+    // 圓角 (macOS 大圓角風格)
+    style.visuals.window_corner_radius = egui::CornerRadius::same(12);
+    style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(8);
+    style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(8);
+    style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(8);
+    style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(8);
+
+    // 背景
+    style.visuals.panel_fill = BG_LIGHT;
+    style.visuals.window_fill = CARD_BG;
+    style.visuals.extreme_bg_color = INPUT_BG;
+
+    // Widget 外觀
+    style.visuals.widgets.noninteractive.bg_fill = CARD_BG;
+    style.visuals.widgets.inactive.bg_fill = INPUT_BG;
+    style.visuals.widgets.inactive.weak_bg_fill = INPUT_BG;
+    style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(229, 229, 234);
+    style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(209, 209, 214);
+
+    // 文字色
+    style.visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, TEXT_PRIMARY);
+    style.visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, TEXT_PRIMARY);
+    style.visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, TEXT_PRIMARY);
+    style.visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, TEXT_PRIMARY);
+
+    // 邊框 (macOS 細邊框)
+    style.visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(0.5, CARD_BORDER);
+    style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(0.5, egui::Color32::from_rgb(195, 195, 200));
+    style.visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, ACCENT_BLUE);
+
+    // 選取色
+    style.visuals.selection.bg_fill = egui::Color32::from_rgb(0, 122, 255).gamma_multiply(0.3);
+    style.visuals.selection.stroke = egui::Stroke::new(1.0, ACCENT_BLUE);
+
+    ctx.set_style(style);
+}
+
+/// macOS 風格卡片 (白底 + 淺灰陰影邊框)
+fn card_frame() -> egui::Frame {
+    egui::Frame::NONE
+        .fill(CARD_BG)
+        .stroke(egui::Stroke::new(0.5, CARD_BORDER))
+        .corner_radius(egui::CornerRadius::same(12))
+        .inner_margin(egui::Margin::same(16))
+        .outer_margin(egui::Margin::symmetric(4, 4))
+        .shadow(egui::epaint::Shadow {
+            offset: [0, 1],
+            blur: 4,
+            spread: 0,
+            color: egui::Color32::from_rgba_premultiplied(0, 0, 0, 18),
+        })
+}
+
+/// 繪製區塊標題 (macOS 風格)
+fn section_header(ui: &mut egui::Ui, icon: &str, title: &str) {
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(icon).size(15.0));
+        ui.label(
+            egui::RichText::new(title)
+                .size(14.0)
+                .strong()
+                .color(TEXT_PRIMARY),
+        );
+    });
+    ui.add_space(6.0);
+}
+
 impl eframe::App for SpeedLimitApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // 每 500ms 更新統計
         self.update_stats();
         if self.is_running {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
 
-        // 視覺主題
-        let mut style = (*ctx.style()).clone();
-        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
-        ctx.set_style(style);
+        apply_theme(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+
+                ui.add_space(8.0);
+
+                // ── 標題列 ──
                 ui.vertical_centered(|ui| {
-                    ui.add_space(8.0);
-
-                    // 標題
-                    ui.heading(
-                        egui::RichText::new("⚡ Windows 全域頻寬限制器")
-                            .size(20.0)
-                            .strong(),
-                    );
-
-                    ui.add_space(8.0);
-                    ui.separator();
-                    ui.add_space(6.0);
-
-                    // ===== 全域限速設定 =====
                     ui.label(
-                        egui::RichText::new("📊 全域限速設定")
-                            .size(15.0)
-                            .strong(),
+                        egui::RichText::new("⚡ Speed Limit")
+                            .size(22.0)
+                            .strong()
+                            .color(TEXT_PRIMARY),
                     );
-
-                    ui.add_space(4.0);
-
-                    // 下載限速輸入
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new("⬇ 下載 (Mbps):")
-                                .size(14.0),
-                        );
-                        let dl_edit = egui::TextEdit::singleline(&mut self.dl_input)
-                            .desired_width(70.0)
-                            .interactive(!self.is_running);
-                        ui.add(dl_edit);
-                    });
-
-                    // 上傳限速輸入
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new("⬆ 上傳 (Mbps):")
-                                .size(14.0),
-                        );
-                        let ul_edit = egui::TextEdit::singleline(&mut self.ul_input)
-                            .desired_width(70.0)
-                            .interactive(!self.is_running);
-                        ui.add(ul_edit);
-                    });
-
                     ui.label(
-                        egui::RichText::new("(0 = 不限制)")
+                        egui::RichText::new("全域 & 程序級頻寬限制器")
                             .size(11.0)
-                            .weak(),
+                            .color(TEXT_DIM),
                     );
+                });
 
-                    ui.add_space(6.0);
-                    ui.separator();
-                    ui.add_space(6.0);
+                ui.add_space(8.0);
 
-                    // ===== 程序限速規則 =====
-                    ui.label(
-                        egui::RichText::new("🎯 程序限速規則")
-                            .size(15.0)
-                            .strong(),
-                    );
+                // ── 狀態指示條 (macOS pill style) ──
+                let (status_bg, status_border, status_dot, status_text) = if self.is_running {
+                    let rules_count = self.process_rules.len();
+                    let info = if rules_count > 0 {
+                        format!("運行中 — ⬇{} ⬆{} Mbps · {} 條規則", self.dl_input, self.ul_input, rules_count)
+                    } else {
+                        format!("運行中 — ⬇ {} ⬆ {} Mbps", self.dl_input, self.ul_input)
+                    };
+                    (
+                        egui::Color32::from_rgb(234, 248, 237),
+                        egui::Color32::from_rgb(190, 230, 196),
+                        ACCENT_GREEN,
+                        info,
+                    )
+                } else {
+                    (
+                        egui::Color32::from_rgb(254, 236, 235),
+                        egui::Color32::from_rgb(240, 200, 198),
+                        ACCENT_RED,
+                        "已停止".to_string(),
+                    )
+                };
 
-                    ui.add_space(4.0);
+                egui::Frame::NONE
+                    .fill(status_bg)
+                    .stroke(egui::Stroke::new(0.5, status_border))
+                    .corner_radius(egui::CornerRadius::same(10))
+                    .inner_margin(egui::Margin::symmetric(14, 7))
+                    .outer_margin(egui::Margin::symmetric(4, 2))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("●").size(10.0).color(status_dot));
+                            ui.label(egui::RichText::new(status_text).size(12.0).color(TEXT_PRIMARY));
+                        });
+                    });
+
+                ui.add_space(4.0);
+
+                // ── 全域限速設定 ──
+                card_frame().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    section_header(ui, "📊", "全域限速設定");
+
+                    ui.columns(2, |cols| {
+                        cols[0].horizontal(|ui| {
+                            ui.label(egui::RichText::new("⬇ 下載").size(13.0).color(ACCENT_BLUE));
+                            let dl_edit = egui::TextEdit::singleline(&mut self.dl_input)
+                                .desired_width(60.0)
+                                .interactive(!self.is_running);
+                            ui.add(dl_edit);
+                            ui.label(egui::RichText::new("Mbps").size(11.0).color(TEXT_DIM));
+                        });
+                        cols[1].horizontal(|ui| {
+                            ui.label(egui::RichText::new("⬆ 上傳").size(13.0).color(ACCENT_GREEN));
+                            let ul_edit = egui::TextEdit::singleline(&mut self.ul_input)
+                                .desired_width(60.0)
+                                .interactive(!self.is_running);
+                            ui.add(ul_edit);
+                            ui.label(egui::RichText::new("Mbps").size(11.0).color(TEXT_DIM));
+                        });
+                    });
+
+                    ui.label(egui::RichText::new("0 = 不限制").size(10.0).color(TEXT_DIM));
+                });
+
+                // ── 程序限速規則 ──
+                card_frame().show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    section_header(ui, "🎯", "程序限速規則");
 
                     if !self.is_running {
-                        // 新增規則的輸入區域
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("程序:").size(13.0));
-                            
-                            let mut active_procs = self.limiter.get_active_processes();
-                            // 過濾掉不具代表性的名稱，比如 System Idle 或 Unknown
-                            active_procs.retain(|p| p != "System Idle" && p != "System" && !p.starts_with("PID:"));
+                        // 新增規則輸入區 (macOS 淺灰底)
+                        egui::Frame::NONE
+                            .fill(INPUT_BG)
+                            .corner_radius(egui::CornerRadius::same(10))
+                            .inner_margin(egui::Margin::same(12))
+                            .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(215, 215, 220)))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(egui::RichText::new("程序").size(12.0).color(TEXT_SECONDARY));
 
-                            egui::ComboBox::from_id_salt("process_combo")
-                                .width(130.0)
-                                .selected_text(if self.rule_process_is_custom {
-                                    "自訂輸入...".to_string()
-                                } else if self.rule_process_input.is_empty() {
-                                    "請選擇程序...".to_string()
-                                } else {
-                                    self.rule_process_input.clone()
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut self.rule_process_is_custom, true, "✍ 自訂輸入...");
-                                    ui.separator();
-                                    for p in active_procs {
-                                        if ui.selectable_value(&mut self.rule_process_input, p.clone(), &p).clicked() {
-                                            self.rule_process_is_custom = false;
-                                        }
+                                    let mut active_procs = self.limiter.get_active_processes();
+                                    active_procs.retain(|p| p != "System Idle" && p != "System" && !p.starts_with("PID:"));
+
+                                    egui::ComboBox::from_id_salt("process_combo")
+                                        .width(140.0)
+                                        .selected_text(if self.rule_process_is_custom {
+                                            "自訂輸入...".to_string()
+                                        } else if self.rule_process_input.is_empty() {
+                                            "選擇程序...".to_string()
+                                        } else {
+                                            self.rule_process_input.clone()
+                                        })
+                                        .show_ui(ui, |ui| {
+                                            ui.selectable_value(&mut self.rule_process_is_custom, true, "✍ 自訂輸入...");
+                                            ui.separator();
+                                            for p in active_procs {
+                                                if ui.selectable_value(&mut self.rule_process_input, p.clone(), &p).clicked() {
+                                                    self.rule_process_is_custom = false;
+                                                }
+                                            }
+                                        });
+
+                                    if self.rule_process_is_custom {
+                                        ui.add(
+                                            egui::TextEdit::singleline(&mut self.rule_process_input)
+                                                .desired_width(90.0)
+                                                .hint_text("chrome.exe"),
+                                        );
                                     }
                                 });
 
-                            if self.rule_process_is_custom {
-                                let pe = egui::TextEdit::singleline(&mut self.rule_process_input)
-                                    .desired_width(100.0)
-                                    .hint_text("chrome.exe");
-                                ui.add(pe);
-                            }
-                        });
+                                ui.add_space(4.0);
 
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("⬇").size(13.0));
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.rule_dl_input)
-                                    .desired_width(50.0),
-                            );
-                            ui.label(egui::RichText::new("⬆").size(13.0));
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.rule_ul_input)
-                                    .desired_width(50.0),
-                            );
-                            ui.label(egui::RichText::new("Mbps").size(12.0).weak());
+                                ui.horizontal(|ui| {
+                                    ui.label(egui::RichText::new("⬇").size(12.0).color(ACCENT_BLUE));
+                                    ui.add(egui::TextEdit::singleline(&mut self.rule_dl_input).desired_width(45.0));
+                                    ui.label(egui::RichText::new("⬆").size(12.0).color(ACCENT_GREEN));
+                                    ui.add(egui::TextEdit::singleline(&mut self.rule_ul_input).desired_width(45.0));
+                                    ui.label(egui::RichText::new("Mbps").size(10.0).color(TEXT_DIM));
 
-                            if ui.button(
-                                egui::RichText::new("➕ 新增").size(13.0),
-                            ).clicked() {
-                                self.add_process_rule();
-                            }
-                        });
+                                    let add_btn = egui::Button::new(
+                                        egui::RichText::new("＋ 新增").size(12.0).color(egui::Color32::WHITE),
+                                    )
+                                    .fill(ACCENT_BLUE)
+                                    .corner_radius(egui::CornerRadius::same(7));
+
+                                    if ui.add(add_btn).clicked() {
+                                        self.add_process_rule();
+                                    }
+                                });
+                            });
+
+                        ui.add_space(4.0);
                     }
 
-                    // 已新增的規則列表
+                    // 規則列表
                     if !self.process_rules.is_empty() {
-                        ui.add_space(4.0);
-
                         let mut to_remove: Option<usize> = None;
 
                         egui::Grid::new("rules_grid")
                             .num_columns(4)
-                            .spacing([8.0, 4.0])
+                            .spacing([10.0, 6.0])
                             .striped(true)
                             .show(ui, |ui| {
-                                // 表頭
-                                ui.label(egui::RichText::new("程序").size(12.0).strong());
-                                ui.label(egui::RichText::new("⬇ DL").size(12.0).strong());
-                                ui.label(egui::RichText::new("⬆ UL").size(12.0).strong());
-                                ui.label(egui::RichText::new("").size(12.0));
+                                ui.label(egui::RichText::new("程序").size(11.0).strong().color(TEXT_SECONDARY));
+                                ui.label(egui::RichText::new("⬇ 下載").size(11.0).strong().color(TEXT_SECONDARY));
+                                ui.label(egui::RichText::new("⬆ 上傳").size(11.0).strong().color(TEXT_SECONDARY));
+                                ui.label(egui::RichText::new("").size(11.0));
                                 ui.end_row();
 
                                 for (i, rule) in self.process_rules.iter().enumerate() {
                                     ui.label(
                                         egui::RichText::new(&rule.process_name)
                                             .size(12.0)
-                                            .color(egui::Color32::from_rgb(180, 220, 255)),
+                                            .color(ACCENT_BLUE),
                                     );
                                     let dl_txt = if rule.download_mbps > 0.0 {
                                         format!("{} Mbps", rule.download_mbps)
@@ -414,12 +528,18 @@ impl eframe::App for SpeedLimitApp {
                                     } else {
                                         "不限".to_string()
                                     };
-                                    ui.label(egui::RichText::new(dl_txt).size(12.0));
-                                    ui.label(egui::RichText::new(ul_txt).size(12.0));
+                                    ui.label(egui::RichText::new(dl_txt).size(11.0).color(TEXT_PRIMARY));
+                                    ui.label(egui::RichText::new(ul_txt).size(11.0).color(TEXT_PRIMARY));
+
                                     if !self.is_running {
-                                        if ui.button(
-                                            egui::RichText::new("✖").size(12.0).color(egui::Color32::from_rgb(255, 100, 100)),
-                                        ).clicked() {
+                                        let del_btn = egui::Button::new(
+                                            egui::RichText::new("✕").size(10.0).color(ACCENT_RED),
+                                        )
+                                        .fill(egui::Color32::from_rgb(255, 235, 235))
+                                        .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(240, 200, 198)))
+                                        .corner_radius(egui::CornerRadius::same(5));
+
+                                        if ui.add(del_btn).clicked() {
                                             to_remove = Some(i);
                                         }
                                     } else {
@@ -435,164 +555,143 @@ impl eframe::App for SpeedLimitApp {
                         }
                     } else {
                         ui.label(
-                            egui::RichText::new("（未設定程序規則，僅套用全域限速）")
+                            egui::RichText::new("尚未設定程序規則，僅套用全域限速")
                                 .size(11.0)
-                                .weak(),
+                                .color(TEXT_DIM),
                         );
                     }
+                });
 
-                    ui.add_space(8.0);
-
-                    // START / STOP 按鈕
+                // ── 開始 / 停止 按鈕 ──
+                ui.add_space(2.0);
+                ui.vertical_centered(|ui| {
                     let (btn_text, btn_color) = if self.is_running {
-                        ("⏹ 停止限速", egui::Color32::from_rgb(220, 50, 50))
+                        ("⏹  停止限速", ACCENT_RED)
                     } else {
-                        ("▶ 開始限速", egui::Color32::from_rgb(50, 160, 80))
+                        ("▶  開始限速", ACCENT_BLUE)
                     };
 
                     let button = egui::Button::new(
-                        egui::RichText::new(btn_text).size(18.0).strong().color(egui::Color32::WHITE),
+                        egui::RichText::new(btn_text).size(16.0).strong().color(egui::Color32::WHITE),
                     )
                     .fill(btn_color)
-                    .min_size(egui::vec2(200.0, 42.0))
-                    .corner_radius(8.0);
+                    .min_size(egui::vec2(220.0, 38.0))
+                    .corner_radius(egui::CornerRadius::same(10));
 
                     if ui.add(button).clicked() {
                         self.toggle_limiting();
                     }
+                });
+                ui.add_space(2.0);
 
-                    ui.add_space(8.0);
+                // ── 即時流量監控 ──
+                if self.is_running {
+                    card_frame().show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        section_header(ui, "📈", "即時流量");
 
-                    // 即時速度顯示
-                    if self.is_running {
-                        ui.separator();
-                        ui.add_space(4.0);
+                        ui.columns(2, |cols| {
+                            // 下載速度卡片
+                            egui::Frame::NONE
+                                .fill(egui::Color32::from_rgb(235, 245, 255))
+                                .corner_radius(egui::CornerRadius::same(10))
+                                .inner_margin(egui::Margin::same(12))
+                                .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(190, 220, 255)))
+                                .show(&mut cols[0], |ui| {
+                                    ui.vertical_centered(|ui| {
+                                        ui.label(egui::RichText::new("⬇ 下載").size(11.0).color(TEXT_SECONDARY));
+                                        ui.label(
+                                            egui::RichText::new(&self.current_dl_speed)
+                                                .size(18.0)
+                                                .strong()
+                                                .color(ACCENT_BLUE),
+                                        );
+                                    });
+                                });
 
-                        ui.label(
-                            egui::RichText::new("📈 即時流量")
-                                .size(14.0)
-                                .strong(),
-                        );
-
-                        egui::Grid::new("speed_grid")
-                            .num_columns(2)
-                            .spacing([20.0, 4.0])
-                            .show(ui, |ui| {
-                                ui.label(
-                                    egui::RichText::new("⬇ 全域下載:")
-                                        .size(13.0)
-                                        .color(egui::Color32::from_rgb(100, 180, 255)),
-                                );
-                                ui.label(
-                                    egui::RichText::new(&self.current_dl_speed)
-                                        .size(13.0)
-                                        .strong(),
-                                );
-                                ui.end_row();
-
-                                ui.label(
-                                    egui::RichText::new("⬆ 全域上傳:")
-                                        .size(13.0)
-                                        .color(egui::Color32::from_rgb(100, 220, 130)),
-                                );
-                                ui.label(
-                                    egui::RichText::new(&self.current_ul_speed)
-                                        .size(13.0)
-                                        .strong(),
-                                );
-                                ui.end_row();
-                            });
+                            // 上傳速度卡片
+                            egui::Frame::NONE
+                                .fill(egui::Color32::from_rgb(234, 250, 240))
+                                .corner_radius(egui::CornerRadius::same(10))
+                                .inner_margin(egui::Margin::same(12))
+                                .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(190, 235, 205)))
+                                .show(&mut cols[1], |ui| {
+                                    ui.vertical_centered(|ui| {
+                                        ui.label(egui::RichText::new("⬆ 上傳").size(11.0).color(TEXT_SECONDARY));
+                                        ui.label(
+                                            egui::RichText::new(&self.current_ul_speed)
+                                                .size(18.0)
+                                                .strong()
+                                                .color(ACCENT_GREEN),
+                                        );
+                                    });
+                                });
+                        });
 
                         // Per-process 流量統計
                         if !self.process_stats_display.is_empty() {
-                            ui.add_space(6.0);
-                            ui.label(
-                                egui::RichText::new("📋 程序流量明細")
-                                    .size(13.0)
-                                    .strong(),
-                            );
+                            ui.add_space(10.0);
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("📋").size(13.0));
+                                ui.label(egui::RichText::new("程序流量明細").size(13.0).strong().color(TEXT_PRIMARY));
+                            });
+                            ui.add_space(4.0);
 
-                            egui::Grid::new("process_stats_grid")
-                                .num_columns(3)
-                                .spacing([10.0, 3.0])
-                                .striped(true)
-                                .show(ui, |ui| {
-                                    ui.label(egui::RichText::new("程序").size(11.0).strong());
-                                    ui.label(egui::RichText::new("⬇ DL").size(11.0).strong());
-                                    ui.label(egui::RichText::new("⬆ UL").size(11.0).strong());
-                                    ui.end_row();
+                            let name_col_width = 180.0;
+                            let speed_col_width = 80.0;
 
-                                    // 最多顯示前 10 個
-                                    for (name, dl, ul) in self.process_stats_display.iter().take(10) {
-                                        // 標記有規則的 process
-                                        let has_rule = self.process_rules.iter().any(|r| {
-                                            r.process_name.to_lowercase() == name.to_lowercase()
-                                        });
-                                        let name_color = if has_rule {
-                                            egui::Color32::from_rgb(255, 200, 80) // 金色 = 有規則
-                                        } else {
-                                            egui::Color32::from_rgb(180, 180, 180) // 灰色 = 無規則
-                                        };
+                            ui.horizontal(|ui| {
+                                ui.add_sized([name_col_width, 16.0],
+                                    egui::Label::new(egui::RichText::new("程序").size(11.0).strong().color(TEXT_SECONDARY)));
+                                ui.add_sized([speed_col_width, 16.0],
+                                    egui::Label::new(egui::RichText::new("⬇ 下載").size(11.0).strong().color(TEXT_SECONDARY)));
+                                ui.add_sized([speed_col_width, 16.0],
+                                    egui::Label::new(egui::RichText::new("⬆ 上傳").size(11.0).strong().color(TEXT_SECONDARY)));
+                            });
 
-                                        let display_name = if name.len() > 18 {
-                                            format!("{}…", &name[..17])
-                                        } else {
-                                            name.clone()
-                                        };
-
-                                        ui.label(
-                                            egui::RichText::new(display_name)
-                                                .size(11.0)
-                                                .color(name_color),
-                                        );
-                                        ui.label(egui::RichText::new(dl).size(11.0));
-                                        ui.label(egui::RichText::new(ul).size(11.0));
-                                        ui.end_row();
-                                    }
+                            for (name, dl, ul) in self.process_stats_display.iter().take(5) {
+                                let has_rule = self.process_rules.iter().any(|r| {
+                                    r.process_name.to_lowercase() == name.to_lowercase()
                                 });
+
+                                let (label, color) = if has_rule {
+                                    (format!("🔒 {}", name), ACCENT_ORANGE)
+                                } else {
+                                    (name.clone(), TEXT_PRIMARY)
+                                };
+
+                                ui.horizontal(|ui| {
+                                    ui.add_sized([name_col_width, 16.0],
+                                        egui::Label::new(egui::RichText::new(label).size(11.0).color(color)).truncate());
+                                    ui.add_sized([speed_col_width, 16.0],
+                                        egui::Label::new(egui::RichText::new(dl).size(11.0).color(ACCENT_BLUE)));
+                                    ui.add_sized([speed_col_width, 16.0],
+                                        egui::Label::new(egui::RichText::new(ul).size(11.0).color(ACCENT_GREEN)));
+                                });
+                            }
                         }
-                    }
+                    });
+                }
 
-                    // 錯誤訊息
-                    if let Some(ref err) = self.error_message {
-                        ui.add_space(6.0);
-                        ui.label(
-                            egui::RichText::new(format!("❌ {}", err))
-                                .size(12.0)
-                                .color(egui::Color32::from_rgb(255, 100, 100)),
-                        );
-                    }
-
-                    // 狀態列
-                    ui.add_space(6.0);
-                    ui.separator();
-
-                    let (status_text, status_color) = if self.is_running {
-                        let rules_count = self.process_rules.len();
-                        let status = if rules_count > 0 {
-                            format!(
-                                "🟢 運行中 (全域 DL:{} UL:{} Mbps, {} 條程序規則)",
-                                self.dl_input, self.ul_input, rules_count
-                            )
-                        } else {
-                            format!(
-                                "🟢 運行中 (DL: {} Mbps, UL: {} Mbps)",
-                                self.dl_input, self.ul_input
-                            )
-                        };
-                        (status, egui::Color32::from_rgb(80, 200, 100))
-                    } else {
-                        ("🔴 已停止".to_string(), egui::Color32::from_rgb(200, 80, 80))
-                    };
-
-                    ui.label(
-                        egui::RichText::new(status_text)
-                            .size(12.0)
-                            .color(status_color),
-                    );
-
+                // ── 錯誤訊息 ──
+                if let Some(ref err) = self.error_message {
                     ui.add_space(4.0);
-                });
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_rgb(255, 240, 240))
+                        .stroke(egui::Stroke::new(0.5, egui::Color32::from_rgb(240, 200, 198)))
+                        .corner_radius(egui::CornerRadius::same(10))
+                        .inner_margin(egui::Margin::same(12))
+                        .outer_margin(egui::Margin::symmetric(4, 0))
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new(format!("⚠  {}", err))
+                                    .size(12.0)
+                                    .color(ACCENT_RED),
+                            );
+                        });
+                }
+
+                ui.add_space(10.0);
             });
         });
     }
