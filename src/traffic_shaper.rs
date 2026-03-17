@@ -101,6 +101,12 @@ pub struct BandwidthLimiter {
 
 impl BandwidthLimiter {
     pub fn new() -> Self {
+        let mut process_monitor = ProcessMonitor::new();
+        // 初始化時即啟動背景程序監控，以供 UI 下拉選單使用
+        if let Err(e) = process_monitor.start() {
+            eprintln!("警告：ProcessMonitor 初始化啟動失敗: {}", e);
+        }
+
         Self {
             running: Arc::new(AtomicBool::new(false)),
             stats: Arc::new(Mutex::new(TrafficStats::default())),
@@ -108,7 +114,7 @@ impl BandwidthLimiter {
             download_limit_mbps: 0.0,
             upload_limit_mbps: 0.0,
             process_rules: Arc::new(Mutex::new(Vec::new())),
-            process_monitor: ProcessMonitor::new(),
+            process_monitor,
         }
     }
 
@@ -146,8 +152,10 @@ impl BandwidthLimiter {
             return Err("限速器已在運行中".to_string());
         }
 
-        // 先啟動 ProcessMonitor
-        self.process_monitor.start()?;
+        // ProcessMonitor 已經在 new() 中啟動，這裡確保它還活著
+        if let Err(e) = self.process_monitor.start() {
+            eprintln!("警告：ProcessMonitor 嘗試重新啟動失敗: {}", e);
+        }
 
         self.running.store(true, Ordering::SeqCst);
 

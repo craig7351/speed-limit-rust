@@ -16,6 +16,7 @@ pub struct SpeedLimitApp {
 
     // Per-process 規則 UI
     rule_process_input: String,
+    rule_process_is_custom: bool,
     rule_dl_input: String,
     rule_ul_input: String,
     process_rules: Vec<ProcessRule>,
@@ -36,6 +37,7 @@ impl Default for SpeedLimitApp {
             current_ul_speed: "—".to_string(),
 
             rule_process_input: String::new(),
+            rule_process_is_custom: false,
             rule_dl_input: "0".to_string(),
             rule_ul_input: "0".to_string(),
             process_rules: Vec::new(),
@@ -279,10 +281,36 @@ impl eframe::App for SpeedLimitApp {
                         // 新增規則的輸入區域
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new("程序:").size(13.0));
-                            let pe = egui::TextEdit::singleline(&mut self.rule_process_input)
-                                .desired_width(110.0)
-                                .hint_text("chrome.exe");
-                            ui.add(pe);
+                            
+                            let mut active_procs = self.limiter.get_active_processes();
+                            // 過濾掉不具代表性的名稱，比如 System Idle 或 Unknown
+                            active_procs.retain(|p| p != "System Idle" && p != "System" && !p.starts_with("PID:"));
+
+                            egui::ComboBox::from_id_salt("process_combo")
+                                .width(130.0)
+                                .selected_text(if self.rule_process_is_custom {
+                                    "自訂輸入...".to_string()
+                                } else if self.rule_process_input.is_empty() {
+                                    "請選擇程序...".to_string()
+                                } else {
+                                    self.rule_process_input.clone()
+                                })
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut self.rule_process_is_custom, true, "✍ 自訂輸入...");
+                                    ui.separator();
+                                    for p in active_procs {
+                                        if ui.selectable_value(&mut self.rule_process_input, p.clone(), &p).clicked() {
+                                            self.rule_process_is_custom = false;
+                                        }
+                                    }
+                                });
+
+                            if self.rule_process_is_custom {
+                                let pe = egui::TextEdit::singleline(&mut self.rule_process_input)
+                                    .desired_width(100.0)
+                                    .hint_text("chrome.exe");
+                                ui.add(pe);
+                            }
                         });
 
                         ui.horizontal(|ui| {
