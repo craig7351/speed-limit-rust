@@ -28,7 +28,7 @@
 
 ### 使用預編譯版本
 
-1.  從 [Releases](https://github.com/peterxcli/speed-limit/releases) 下載最新的 `SpeedLimit-Windows-x64.zip`
+1.  從 [Releases](https://github.com/craig7351/speed-limit-rust/releases) 下載最新的 `SpeedLimit-Windows-x64.zip`
 2.  解壓縮到任意資料夾
 3.  以系統管理員身份執行 `speed-limit.exe`
 
@@ -39,8 +39,8 @@
 需要 [Rust 工具鏈](https://rustup.rs/) (建議 1.75 以上)。
 
 ```bash
-git clone https://github.com/peterxcli/speed-limit.git
-cd speed-limit
+git clone https://github.com/craig7351/speed-limit-rust.git
+cd speed-limit-rust
 cargo run --release
 ```
 
