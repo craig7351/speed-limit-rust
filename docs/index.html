@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows Speed Limit - 現代化 Windows 頻寬限制器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        /* Custom smooth scroll */
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+    <!-- Navigation -->
+    <nav class="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-gauge-high text-blue-500 text-2xl mr-3"></i>
+                    <span class="font-bold text-xl tracking-tight">Windows Speed Limit</span>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <a href="#features" class="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">功能特色</a>
+                    <a href="#quickstart" class="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">快速開始</a>
+                    <a href="https://github.com/craig7351/speed-limit-rust" target="_blank" class="text-slate-500 hover:text-slate-900 transition-colors">
+                        <i class="fab fa-github text-2xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="relative overflow-hidden bg-white">
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+CgkJPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgwLCAwLCAwLCAwLjA1KSIvPgoJPC9zdmc+')] [mask-image:linear-gradient(to_bottom,white,transparent)]"></div>
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-32 text-center">
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-sm font-semibold mb-8 border border-blue-100">
+                <span class="flex h-2 w-2 rounded-full bg-blue-500 mr-2"></span>
+                開箱即用的現代化限速工具
+            </div>
+            <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 text-slate-900">
+                全域與單一程式 <br class="hidden md:block" />
+                <span class="gradient-text">精確頻寬控制</span>
+            </h1>
+            <p class="mt-4 max-w-2xl mx-auto text-xl text-slate-500 mb-10 leading-relaxed">
+                使用 Rust 與 WinDivert 核心驅動打造。提供 macOS 風格優雅介面，支援精準的 Token Bucket 流量整形演算法與即時速度監控。
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="https://github.com/craig7351/speed-limit-rust/releases" target="_blank" class="px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 flex items-center justify-center">
+                    <i class="fas fa-download mr-2"></i> 下載最新版本
+                </a>
+                <a href="https://github.com/craig7351/speed-limit-rust" target="_blank" class="px-8 py-3.5 bg-white text-slate-700 font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center hover:border-slate-300 shadow-sm">
+                    <i class="fab fa-github mr-2"></i> 檢視原始碼
+                </a>
+            </div>
+            
+            <div class="mt-12 flex justify-center gap-6 text-sm text-slate-500 font-medium">
+                <span class="flex items-center"><i class="fas fa-check-circle text-emerald-500 mr-2"></i> Windows 10/11 (64-bit)</span>
+                <span class="flex items-center"><i class="fas fa-check-circle text-emerald-500 mr-2"></i> 免安裝單一執行檔</span>
+                <span class="flex items-center"><i class="fas fa-check-circle text-emerald-500 mr-2"></i> MIT 授權</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div id="features" class="bg-slate-50 py-24 scroll-mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-900">強大的核心與優雅的介面</h2>
+                <p class="mt-4 text-lg text-slate-500 max-w-2xl mx-auto">專為需要精確控制網路流量的進階使用者設計，效能與美觀兼具</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <i class="fas fa-crosshairs"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-800">全域 & 程序限速</h3>
+                    <p class="text-slate-500 leading-relaxed">可設定整體網路頻寬上限，也可針對個別程式（如 Chrome、Steam）設定獨立的下載/上傳速度限制。</p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="w-14 h-14 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                        <i class="fas fa-filter"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-800">Token Bucket 演算法</h3>
+                    <p class="text-slate-500 leading-relaxed">核心採用精確的流量整形技術，最大突發量為 1 秒流量，單一封包最多延遲 100ms 避免 TCP 連線超時。</p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-800">即時速度監控</h3>
+                    <p class="text-slate-500 leading-relaxed">每 500ms 更新下行/上行速度，並即時顯示前 5 名流量最高的程式，網路使用狀況一目了然。</p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="w-14 h-14 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                        <i class="fas fa-desktop"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-800">macOS 風格 GUI</h3>
+                    <p class="text-slate-500 leading-relaxed">使用 egui 打造流暢的圖形化介面，淺色主題、卡片式佈局與圓角設計，提供極佳的使用者體驗。</p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="w-14 h-14 bg-red-50 text-red-600 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-red-500 group-hover:text-white transition-colors">
+                        <i class="fas fa-shield-halved"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-800">安全停止機制</h3>
+                    <p class="text-slate-500 leading-relaxed">使用 WinDivert 核心 API 確保停止限速後，正確移除核心過濾器，網路立即無縫恢復正常。</p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="w-14 h-14 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-sky-500 group-hover:text-white transition-colors">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-800">智慧程序偵測</h3>
+                    <p class="text-slate-500 leading-relaxed">結合 Flow 層即時連線追蹤與 Windows 系統掃描，自動列出所有可限速程式，並支援設定檔自動儲存。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Start -->
+    <div id="quickstart" class="bg-white py-24 border-t border-slate-100 scroll-mt-16">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold text-slate-900 mb-10 text-center">快速開始</h2>
+            
+            <div class="bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-800">
+                <div class="flex items-center px-4 py-3 bg-slate-800/80 border-b border-slate-700/50">
+                    <div class="flex space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-red-500/90 shadow-sm shadow-red-500/20"></div>
+                        <div class="w-3 h-3 rounded-full bg-yellow-500/90 shadow-sm shadow-yellow-500/20"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-500/90 shadow-sm shadow-green-500/20"></div>
+                    </div>
+                    <div class="ml-4 text-slate-400 text-xs font-mono font-medium tracking-wider uppercase">Installation Guide</div>
+                </div>
+                <div class="p-8 text-slate-300 font-mono text-sm leading-relaxed overflow-x-auto">
+                    <p class="text-emerald-400 font-semibold mb-2"># 1. 下載最新版本</p>
+                    <p class="mb-6 text-slate-400">前往 GitHub Releases 下載 <code>SpeedLimit-Windows-x64.zip</code> 並解壓縮到任意資料夾</p>
+                    
+                    <p class="text-emerald-400 font-semibold mb-2"># 2. 執行程式 (自動請求管理員權限)</p>
+                    <p class="mb-8 p-3 bg-slate-800/50 rounded-lg inline-block text-blue-300">.\speed-limit.exe</p>
+                    
+                    <div class="border-l-4 border-yellow-500/50 pl-4 py-1 bg-yellow-500/5 rounded-r-lg">
+                        <p class="text-yellow-400 font-semibold mb-2"><i class="fas fa-exclamation-triangle mr-1"></i> 重要注意事項：</p>
+                        <p class="text-slate-400 leading-loose">
+                            請確保 <code class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">speed-limit.exe</code>、<code class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">WinDivert.dll</code> 與 <code class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">WinDivert64.sys</code><br>
+                            這三個檔案**必須放在同一個資料夾下**才能正常啟動。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-50 border-t border-slate-200 py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="flex items-center">
+                    <i class="fas fa-gauge-high text-blue-500 text-2xl mr-3"></i>
+                    <span class="font-bold text-lg text-slate-800">Windows Speed Limit</span>
+                </div>
+                <div class="text-slate-500 text-sm font-medium">
+                    &copy; 2024-2026. Released under the MIT License.
+                </div>
+                <div class="flex space-x-5">
+                    <a href="https://github.com/craig7351/speed-limit-rust" target="_blank" class="text-slate-400 hover:text-slate-900 transition-colors">
+                        <span class="sr-only">GitHub</span>
+                        <i class="fab fa-github text-2xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
