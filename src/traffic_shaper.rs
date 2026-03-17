@@ -217,8 +217,7 @@ impl BandwidthLimiter {
             let _ = handle.join();
         }
 
-        // 停止 ProcessMonitor
-        self.process_monitor.stop();
+        // ProcessMonitor 保持運行，持續提供 UI 下拉選單的程序列表
 
         // 清空統計
         if let Ok(mut s) = self.stats.lock() {
@@ -467,5 +466,7 @@ impl Drop for BandwidthLimiter {
         if self.running.load(Ordering::Relaxed) {
             self.stop();
         }
+        // 程式結束時才停止 ProcessMonitor
+        self.process_monitor.stop();
     }
 }
