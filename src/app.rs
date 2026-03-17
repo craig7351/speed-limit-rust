@@ -2,6 +2,7 @@
 
 use eframe::egui;
 
+use crate::config;
 use crate::traffic_shaper::{BandwidthLimiter, ProcessRule};
 
 /// 主應用程式狀態
@@ -50,7 +51,35 @@ impl Default for SpeedLimitApp {
 impl SpeedLimitApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         setup_custom_fonts(&cc.egui_ctx);
-        Self::default()
+
+        // 從設定檔載入上次的設定
+        let cfg = config::load_config();
+        let dl_str = if cfg.download_limit_mbps > 0.0 {
+            cfg.download_limit_mbps.to_string()
+        } else {
+            "0".to_string()
+        };
+        let ul_str = if cfg.upload_limit_mbps > 0.0 {
+            cfg.upload_limit_mbps.to_string()
+        } else {
+            "0".to_string()
+        };
+
+        Self {
+            limiter: BandwidthLimiter::new(),
+            dl_input: dl_str,
+            ul_input: ul_str,
+            is_running: false,
+            error_message: None,
+            current_dl_speed: "—".to_string(),
+            current_ul_speed: "—".to_string(),
+            rule_process_input: String::new(),
+            rule_process_is_custom: false,
+            rule_dl_input: "0".to_string(),
+            rule_ul_input: "0".to_string(),
+            process_rules: cfg.process_rules,
+            process_stats_display: Vec::new(),
+        }
     }
 
     /// 格式化 bytes/s 為人類可讀格式
@@ -95,6 +124,9 @@ impl SpeedLimitApp {
 
             self.limiter.set_limits(dl, ul);
             self.limiter.set_process_rules(self.process_rules.clone());
+
+            // 儲存目前設定
+            self.save_current_config();
 
             match self.limiter.start() {
                 Ok(()) => {
@@ -170,6 +202,20 @@ impl SpeedLimitApp {
         self.rule_process_input.clear();
         self.rule_dl_input = "0".to_string();
         self.rule_ul_input = "0".to_string();
+
+        self.save_current_config();
+    }
+
+    /// 儲存目前設定到 JSON 檔
+    fn save_current_config(&self) {
+        let cfg = config::AppConfig {
+            download_limit_mbps: self.dl_input.trim().parse().unwrap_or(0.0),
+            upload_limit_mbps: self.ul_input.trim().parse().unwrap_or(0.0),
+            process_rules: self.process_rules.clone(),
+        };
+        if let Err(e) = config::save_config(&cfg) {
+            eprintln!("儲存設定失敗: {}", e);
+        }
     }
 }
 
@@ -385,6 +431,7 @@ impl eframe::App for SpeedLimitApp {
 
                         if let Some(i) = to_remove {
                             self.process_rules.remove(i);
+                            self.save_current_config();
                         }
                     } else {
                         ui.label(

@@ -5,6 +5,7 @@
 
 mod admin;
 mod app;
+mod config;
 mod traffic_shaper;
 mod process_monitor;
 

@@ -25,7 +25,7 @@ pub struct TrafficStats {
 }
 
 /// Process 限速規則
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProcessRule {
     pub process_name: String,
     pub download_mbps: f64,

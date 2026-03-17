@@ -32,6 +32,41 @@ pub struct ProcessInfo {
 }
 
 /// 取得 process 名稱（從 PID）
+/// 列舉系統所有正在執行的程序名稱
+fn enumerate_all_processes() -> Vec<String> {
+    use windows::Win32::System::ProcessStatus::EnumProcesses;
+
+    let mut pids = vec![0u32; 2048];
+    let mut bytes_returned: u32 = 0;
+
+    let ok = unsafe {
+        EnumProcesses(
+            pids.as_mut_ptr(),
+            (pids.len() * std::mem::size_of::<u32>()) as u32,
+            &mut bytes_returned,
+        )
+    };
+
+    if ok.is_err() {
+        return Vec::new();
+    }
+
+    let count = bytes_returned as usize / std::mem::size_of::<u32>();
+    let mut names = Vec::new();
+
+    for &pid in &pids[..count] {
+        if pid == 0 || pid == 4 {
+            continue;
+        }
+        let name = get_process_name(pid);
+        if !name.starts_with("PID:") {
+            names.push(name);
+        }
+    }
+
+    names
+}
+
 fn get_process_name(pid: u32) -> String {
     use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT};
     use windows::Win32::Foundation::CloseHandle;
@@ -151,20 +186,25 @@ impl ProcessMonitor {
         }
     }
 
-    /// 取得所有目前活躍的 process 名稱列表（去重）
+    /// 取得所有可用的 process 名稱列表（系統程序列表 + Flow 歷史記錄，去重排序）
     pub fn get_active_processes(&self) -> Vec<String> {
+        let mut names = std::collections::HashSet::new();
+
+        // 1. 從 flow_map 取得有網路活動的程序
         if let Ok(map) = self.flow_map.lock() {
-            let mut names: Vec<String> = map
-                .values()
-                .map(|info| info.name.clone())
-                .collect::<std::collections::HashSet<_>>()
-                .into_iter()
-                .collect();
-            names.sort();
-            names
-        } else {
-            Vec::new()
+            for info in map.values() {
+                names.insert(info.name.clone());
+            }
         }
+
+        // 2. 列舉系統所有正在執行的程序
+        for name in enumerate_all_processes() {
+            names.insert(name);
+        }
+
+        let mut result: Vec<String> = names.into_iter().collect();
+        result.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        result
     }
 
     /// 取得 flow_map 的 Arc 引用（供 traffic_shaper 查詢使用）

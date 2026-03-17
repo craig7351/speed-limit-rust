@@ -2859,6 +2859,8 @@ name = "speed-limit"
 version = "0.1.0"
 dependencies = [
  "eframe",
+ "serde",
+ "serde_json",
  "windivert",
  "windivert-sys",
  "windows 0.61.3",
